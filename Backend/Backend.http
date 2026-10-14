@@ -1,0 +1,29 @@
+@Backend_HostAddress = http://localhost:5000
+@token = paste-a-token-from-login-here
+
+POST {{Backend_HostAddress}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "student@example.com",
+  "username": "student",
+  "password": "secret123",
+  "fullName": "Test Student"
+}
+
+###
+
+POST {{Backend_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "student@example.com",
+  "password": "secret123"
+}
+
+###
+
+GET {{Backend_HostAddress}}/api/practice/progress
+Authorization: Bearer {{token}}
+
+###
