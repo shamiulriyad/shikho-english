@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using Backend.DTOs;
 using Backend.Models;
 using Backend.Repositories;
@@ -13,6 +15,8 @@ namespace Backend.Services
 
     public class AuthService : IAuthService
     {
+        private const string UsernameIndexName = "IX_Users_Username";
+
         private readonly IUserRepository _userRepository;
         private readonly IJwtTokenService _jwtTokenService;
         private readonly IPasswordHasher<User> _passwordHasher;
@@ -26,7 +30,9 @@ namespace Backend.Services
 
         public async Task<AuthResponseDto> Register(UserRegisterDto registerDto)
         {
-            if (await _userRepository.GetByEmail(registerDto.Email) != null)
+            var email = EmailNormalization.Normalize(registerDto.Email);
+
+            if (await _userRepository.GetByEmail(email) != null)
             {
                 return new AuthResponseDto { Success = false, Message = "Email already exists" };
             }
@@ -38,14 +44,25 @@ namespace Backend.Services
 
             var user = new User
             {
-                Email = registerDto.Email,
+                Email = email,
                 Username = registerDto.Username,
                 FullName = registerDto.FullName
             };
             user.PasswordHash = _passwordHasher.HashPassword(user, registerDto.Password);
 
             await _userRepository.Add(user);
-            var saved = await _userRepository.SaveChanges();
+
+            bool saved;
+            try
+            {
+                saved = await _userRepository.SaveChanges();
+            }
+            catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } unique)
+            {
+                // Another request registered the same email or username between the checks above and this insert
+                var message = unique.ConstraintName == UsernameIndexName ? "Username already exists" : "Email already exists";
+                return new AuthResponseDto { Success = false, Message = message };
+            }
 
             if (!saved)
             {
