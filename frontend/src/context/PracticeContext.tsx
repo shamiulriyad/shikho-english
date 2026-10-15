@@ -4,7 +4,6 @@ import type { PracticeResult } from '../types/api';
 
 interface PracticeContextValue {
   practices: PracticeResult[];
-  isLoading: boolean;
   submitSentence: (sentence: string) => Promise<PracticeResult>;
   getHistory: () => Promise<PracticeResult[]>;
 }
@@ -13,35 +12,24 @@ const PracticeContext = createContext<PracticeContextValue | null>(null);
 
 export const PracticeProvider = ({ children }: { children: ReactNode }) => {
   const [practices, setPractices] = useState<PracticeResult[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
 
   const submitSentence = async (sentence: string) => {
-    setIsLoading(true);
-    try {
-      const data = await apiCall<PracticeResult>('/practice/submit', {
-        method: 'POST',
-        body: JSON.stringify({ sentence })
-      });
-      setPractices((prev) => [data, ...prev]);
-      return data;
-    } finally {
-      setIsLoading(false);
-    }
+    const data = await apiCall<PracticeResult>('/practice/submit', {
+      method: 'POST',
+      body: JSON.stringify({ sentence })
+    });
+    setPractices((prev) => [data, ...prev]);
+    return data;
   };
 
   const getHistory = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const data = await apiCall<PracticeResult[]>('/practice/history');
-      setPractices(data);
-      return data;
-    } finally {
-      setIsLoading(false);
-    }
+    const data = await apiCall<PracticeResult[]>('/practice/history');
+    setPractices(data);
+    return data;
   }, []);
 
   return (
-    <PracticeContext.Provider value={{ practices, isLoading, submitSentence, getHistory }}>
+    <PracticeContext.Provider value={{ practices, submitSentence, getHistory }}>
       {children}
     </PracticeContext.Provider>
   );
