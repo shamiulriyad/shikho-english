@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
-import { apiCall, ApiError, API_BASE_URL } from './api';
+import { apiCall, ApiError, API_BASE_URL, isRateLimited, parseRetryAfter } from './api';
 import { redirectTo } from './navigation';
 import { jsonResponse, mockFetch, problemResponse, signIn } from '../test/utils';
 
@@ -84,7 +84,32 @@ describe('apiCall', () => {
 
     expect((error as ApiError).status).toBe(429);
     expect((error as ApiError).message).toBe('You are going too fast. Please wait a minute and try again.');
+    expect(isRateLimited(error)).toBe(true);
+    // No Retry-After header: the wait is unknown
+    expect((error as ApiError).retryAfter).toBeNull();
     expect(redirectTo).not.toHaveBeenCalled();
+  });
+
+  test('reads the Retry-After header of a rate-limited response', async () => {
+    const response = problemResponse(429, 'You are going too fast.', 'Too many requests');
+    response.headers.set('Retry-After', '42');
+    const fetchMock = mockFetch(response);
+
+    const error = await apiCall('/questions/analyze', { method: 'POST' }).catch((e: unknown) => e);
+
+    expect((error as ApiError).retryAfter).toBe(42);
+    // Exactly one request: the client never retries on its own
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  test('ignores a malformed Retry-After header', async () => {
+    const response = problemResponse(429, 'You are going too fast.', 'Too many requests');
+    response.headers.set('Retry-After', 'soon');
+    mockFetch(response);
+
+    const error = await apiCall('/questions/analyze', { method: 'POST' }).catch((e: unknown) => e);
+
+    expect((error as ApiError).retryAfter).toBeNull();
   });
 
   test('handles a non-JSON error page without crashing', async () => {
@@ -99,15 +124,17 @@ describe('apiCall', () => {
     await expect(apiCall('/practice/history')).rejects.toThrow('The server sent an unexpected response. Please try again.');
   });
 
-  test('an expired session clears the stored login and redirects to /login', async () => {
+  test('an expired session clears the stored login and redirects to /login, remembering the page', async () => {
     signIn();
+    window.history.pushState({}, '', '/history?page=2');
     mockFetch(new Response(null, { status: 401 }));
 
-    await expect(apiCall('/practice/history')).rejects.toBeInstanceOf(ApiError);
+    await expect(apiCall('/questions/history')).rejects.toBeInstanceOf(ApiError);
 
     expect(localStorage.getItem('token')).toBeNull();
     expect(localStorage.getItem('user')).toBeNull();
-    expect(redirectTo).toHaveBeenCalledWith('/login');
+    expect(redirectTo).toHaveBeenCalledWith('/login?next=%2Fhistory%3Fpage%3D2');
+    window.history.pushState({}, '', '/');
   });
 
   test('a failed login with a stale token keeps the error instead of redirecting', async () => {
@@ -125,5 +152,23 @@ describe('apiCall', () => {
     await expect(apiCall('/practice/history')).rejects.toThrow('API error: 401');
 
     expect(redirectTo).not.toHaveBeenCalled();
+  });
+});
+
+describe('parseRetryAfter', () => {
+  const now = Date.parse('2026-10-16T10:00:00Z');
+
+  test.each([
+    ['42', 42],
+    [' 7 ', 7],
+    ['0', 0],
+    ['Fri, 16 Oct 2026 10:00:30 GMT', 30],
+    ['Fri, 16 Oct 2026 09:59:00 GMT', 0]
+  ])('reads %j as %d seconds', (header, seconds) => {
+    expect(parseRetryAfter(header, now)).toBe(seconds);
+  });
+
+  test.each([null, '', 'soon', '-5', '1.5', '99999999999999999999', '86400'])('rejects %j', (header) => {
+    expect(parseRetryAfter(header, now)).toBeNull();
   });
 });
