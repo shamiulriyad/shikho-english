@@ -29,7 +29,7 @@ namespace Backend.Options
 
             if (string.IsNullOrWhiteSpace(options.Secret))
             {
-                failures.Add("Jwt:Secret is not configured. Use 'dotnet user-secrets' in Development or the Jwt__Secret environment variable elsewhere.");
+                failures.Add("Jwt:Secret is not configured. Set Jwt__Secret in the repository's .env file (Development) or as an environment variable.");
             }
             else
             {
