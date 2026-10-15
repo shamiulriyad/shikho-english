@@ -74,7 +74,7 @@ public class StartupConfigurationTests
     [InlineData("Ai:Gemini:ApiKey", "", "Ai:Gemini:ApiKey")]
     [InlineData("Ai:Provider", "Claude", "Ai:Provider")]
     [InlineData("Database:MigrateOnStartup", "true", "MigrateOnStartup")]
-    [InlineData("ConnectionStrings:DefaultConnection", "", "ConnectionStrings:DefaultConnection")]
+    [InlineData("ConnectionStrings:DefaultConnection", "", "No database configured")]
     public async Task Production_WithUnsafeConfiguration_RefusesToStart(string key, string value, string expectedMessage)
     {
         await using var factory = new ApiFactory(UnusedConnectionString, "Production", new() { [key] = value });
