@@ -2,8 +2,10 @@ using System;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Backend.Models;
+using Backend.Options;
 
 namespace Backend.Services
 {
@@ -14,21 +16,16 @@ namespace Backend.Services
 
     public class JwtTokenService : IJwtTokenService
     {
-        private readonly IConfiguration _configuration;
+        private readonly JwtOptions _options;
 
-        public JwtTokenService(IConfiguration configuration)
+        public JwtTokenService(IOptions<JwtOptions> options)
         {
-            _configuration = configuration;
+            _options = options.Value;
         }
 
         public string GenerateToken(User user)
         {
-            var jwtSecret = _configuration["Jwt:Secret"] ?? throw new InvalidOperationException("JWT Secret not configured");
-            var jwtIssuer = _configuration["Jwt:Issuer"] ?? "GrammarLearner";
-            var jwtAudience = _configuration["Jwt:Audience"] ?? "GrammarLearnerUsers";
-            var jwtExpiryMinutes = int.Parse(_configuration["Jwt:ExpiryMinutes"] ?? "60");
-
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret));
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_options.Secret));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
             var claims = new[]
@@ -40,10 +37,10 @@ namespace Backend.Services
             };
 
             var token = new JwtSecurityToken(
-                issuer: jwtIssuer,
-                audience: jwtAudience,
+                issuer: _options.Issuer,
+                audience: _options.Audience,
                 claims: claims,
-                expires: DateTime.UtcNow.AddMinutes(jwtExpiryMinutes),
+                expires: DateTime.UtcNow.AddMinutes(_options.ExpiryMinutes),
                 signingCredentials: creds
             );
 
