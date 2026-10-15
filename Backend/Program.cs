@@ -9,12 +9,18 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Backend.Ai;
+using Backend.Configuration;
 using Backend.Data;
 using Backend.Middleware;
 using Backend.Models;
 using Backend.Options;
 using Backend.Repositories;
 using Backend.Services;
+
+// Every setting for the whole project lives in one file: <repository root>/.env (never committed).
+// It is loaded into the environment first, so it also decides ASPNETCORE_ENVIRONMENT and ASPNETCORE_URLS.
+// Variables already set in the real environment (for example on a server) always win.
+DotEnvFile.LoadIfPresent();
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -49,7 +55,19 @@ builder.Services.AddSingleton<IValidateOptions<DatabaseOptions>, DatabaseOptions
 builder.Services.AddOptions<DatabaseOptions>()
     .BindConfiguration(DatabaseOptions.SectionName)
     .Configure<IConfiguration>((options, configuration) =>
-        options.ConnectionString = configuration.GetConnectionString("DefaultConnection") ?? string.Empty)
+    {
+        // A full connection string wins; otherwise build one from the separate SUPABASE_* settings
+        var connectionString = configuration.GetConnectionString("DefaultConnection");
+        if (string.IsNullOrWhiteSpace(connectionString) && SupabaseConnection.IsConfigured(configuration))
+        {
+            var (built, missing) = SupabaseConnection.Build(configuration);
+            connectionString = built;
+            options.SetupErrors.AddRange(missing.Select(setting => $"Supabase setting missing or invalid in .env: {setting}"));
+        }
+        options.ConnectionString = DatabaseOptions.ResolveCertificatePath(
+            connectionString ?? string.Empty,
+            Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "..")));
+    })
     .ValidateOnStart();
 
 builder.Services.AddSingleton<IValidateOptions<RateLimitingOptions>, RateLimitingOptionsValidator>();
@@ -166,6 +184,9 @@ builder.Services.AddTransient<IAiProvider>(services =>
 builder.Services.AddScoped<IGrammarAiService, GrammarAiService>();
 
 var app = builder.Build();
+
+if (DotEnvFile.LoadedFrom != null)
+    app.Logger.LogInformation("Settings loaded from {EnvFile}", DotEnvFile.LoadedFrom);
 
 // Configure the HTTP request pipeline
 app.UseExceptionHandler();
