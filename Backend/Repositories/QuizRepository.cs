@@ -11,6 +11,17 @@ namespace Backend.Repositories
         public async Task<Quiz?> GetByIdWithQuestions(int id)
         {
             return await _dbSet
+                .Include(q => q.Topic)
+                .Include(q => q.Questions.OrderBy(qq => qq.Id))
+                .FirstOrDefaultAsync(q => q.Id == id);
+        }
+
+        // Reads the saved state, ignoring entities this context already changed
+        public async Task<Quiz?> GetByIdWithQuestionsUntracked(int id)
+        {
+            return await _dbSet
+                .AsNoTracking()
+                .Include(q => q.Topic)
                 .Include(q => q.Questions.OrderBy(qq => qq.Id))
                 .FirstOrDefaultAsync(q => q.Id == id);
         }
@@ -19,8 +30,24 @@ namespace Backend.Repositories
         {
             return await _dbSet
                 .Where(q => q.UserId == userId)
+                .Include(q => q.Topic)
                 .Include(q => q.Questions.OrderBy(qq => qq.Id))
                 .OrderByDescending(q => q.CreatedAt)
+                .ToListAsync();
+        }
+
+        // Answered practice-set questions per topic (article quizzes have no topic and are not included)
+        public async Task<List<TopicActivity>> GetPracticeTopicActivity(int userId)
+        {
+            return await _context.QuizQuestions
+                .Where(qq => qq.Quiz!.UserId == userId && qq.Quiz.TopicId != null && qq.UserAnswer != "")
+                .GroupBy(qq => qq.Quiz!.TopicId!.Value)
+                .Select(g => new TopicActivity(
+                    g.Key,
+                    g.Count(),
+                    g.Count(),
+                    g.Count(qq => qq.IsAnsweredCorrectly),
+                    g.Max(qq => qq.Quiz!.CompletedAt ?? qq.Quiz.CreatedAt)))
                 .ToListAsync();
         }
 
