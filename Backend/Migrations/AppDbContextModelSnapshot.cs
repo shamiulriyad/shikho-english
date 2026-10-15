@@ -62,6 +62,209 @@ namespace Backend.Migrations
                     b.ToTable("GrammarPractices");
                 });
 
+            modelBuilder.Entity("Backend.Models.GrammarTopic", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("NameBn")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("NameEn")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("GrammarTopics");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Code = "articles",
+                            NameBn = "আর্টিকেল",
+                            NameEn = "Articles",
+                            SortOrder = 1
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Code = "prepositions",
+                            NameBn = "প্রিপজিশন",
+                            NameEn = "Prepositions",
+                            SortOrder = 2
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Code = "right-form-of-verbs",
+                            NameBn = "ক্রিয়ার সঠিক রূপ",
+                            NameEn = "Right Form of Verbs",
+                            SortOrder = 3
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Code = "tag-questions",
+                            NameBn = "ট্যাগ প্রশ্ন",
+                            NameEn = "Tag Questions",
+                            SortOrder = 4
+                        },
+                        new
+                        {
+                            Id = 5,
+                            Code = "narration",
+                            NameBn = "উক্তি পরিবর্তন",
+                            NameEn = "Narration (Direct and Indirect Speech)",
+                            SortOrder = 5
+                        },
+                        new
+                        {
+                            Id = 6,
+                            Code = "transformation",
+                            NameBn = "বাক্য রূপান্তর",
+                            NameEn = "Transformation of Sentences",
+                            SortOrder = 6
+                        },
+                        new
+                        {
+                            Id = 7,
+                            Code = "completing-sentences",
+                            NameBn = "বাক্য সম্পূর্ণকরণ",
+                            NameEn = "Completing Sentences",
+                            SortOrder = 7
+                        },
+                        new
+                        {
+                            Id = 8,
+                            Code = "connectors",
+                            NameBn = "সংযোজক শব্দ",
+                            NameEn = "Connectors",
+                            SortOrder = 8
+                        },
+                        new
+                        {
+                            Id = 9,
+                            Code = "suffix-prefix",
+                            NameBn = "সাফিক্স ও প্রিফিক্স",
+                            NameEn = "Suffixes and Prefixes",
+                            SortOrder = 9
+                        },
+                        new
+                        {
+                            Id = 10,
+                            Code = "punctuation",
+                            NameBn = "বিরামচিহ্ন ও বড় হাতের অক্ষর",
+                            NameEn = "Punctuation and Capitalization",
+                            SortOrder = 10
+                        },
+                        new
+                        {
+                            Id = 11,
+                            Code = "other",
+                            NameBn = "অন্যান্য",
+                            NameEn = "Other",
+                            SortOrder = 99
+                        });
+                });
+
+            modelBuilder.Entity("Backend.Models.QuestionAnalysis", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AiModel")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("AiProvider")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("CommonMistakesJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("CorrectAnswer")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PromptVersion")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("QuestionText")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("RuleBn")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("RuleEn")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("StepsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("StudentAnswer")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("StudentAnswerFeedbackBn")
+                        .HasColumnType("text");
+
+                    b.Property<string>("StudentAnswerFeedbackEn")
+                        .HasColumnType("text");
+
+                    b.Property<bool?>("StudentAnswerIsCorrect")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("TopicId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TopicId");
+
+                    b.HasIndex("UserId", "CreatedAt");
+
+                    b.ToTable("QuestionAnalyses");
+                });
+
             modelBuilder.Entity("Backend.Models.Quiz", b =>
                 {
                     b.Property<int>("Id")
@@ -82,9 +285,15 @@ namespace Backend.Migrations
                     b.Property<int>("Score")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("SourceAnalysisId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<int?>("TopicId")
+                        .HasColumnType("integer");
 
                     b.Property<int>("TotalQuestions")
                         .HasColumnType("integer");
@@ -93,6 +302,10 @@ namespace Backend.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("SourceAnalysisId");
+
+                    b.HasIndex("TopicId");
 
                     b.HasIndex("UserId");
 
@@ -107,12 +320,24 @@ namespace Backend.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("AcceptedAnswersJson")
+                        .HasColumnType("text");
+
                     b.Property<string>("CorrectAnswer")
                         .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Explanation")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ExplanationBn")
+                        .HasColumnType("text");
+
+                    b.Property<string>("FeedbackBn")
+                        .HasColumnType("text");
+
+                    b.Property<string>("FeedbackEn")
                         .HasColumnType("text");
 
                     b.Property<string>("IncorrectSentence")
@@ -132,6 +357,12 @@ namespace Backend.Migrations
                     b.Property<string>("UserAnswer")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
 
                     b.HasKey("Id");
 
@@ -241,13 +472,46 @@ namespace Backend.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Backend.Models.QuestionAnalysis", b =>
+                {
+                    b.HasOne("Backend.Models.GrammarTopic", "Topic")
+                        .WithMany()
+                        .HasForeignKey("TopicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Backend.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Topic");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Backend.Models.Quiz", b =>
                 {
+                    b.HasOne("Backend.Models.QuestionAnalysis", "SourceAnalysis")
+                        .WithMany()
+                        .HasForeignKey("SourceAnalysisId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Backend.Models.GrammarTopic", "Topic")
+                        .WithMany()
+                        .HasForeignKey("TopicId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Backend.Models.User", "User")
                         .WithMany("Quizzes")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("SourceAnalysis");
+
+                    b.Navigation("Topic");
 
                     b.Navigation("User");
                 });
