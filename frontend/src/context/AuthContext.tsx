@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { createContext, startTransition, useContext, useState, useEffect, type ReactNode } from 'react';
 import { apiCall } from '../utils/api';
 import type { AuthResponse, User } from '../types/api';
 
@@ -56,9 +56,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const register = (email: string, username: string, password: string, fullName: string) =>
     authenticate('/auth/register', { email, username, password, fullName }, 'Registration failed');
 
+  // React Router applies navigation in a transition. Signing out in one too lets "log out and go home"
+  // land in a single render, so a protected page never sees the signed-out state and bounces to login.
   const logout = () => {
-    setUser(null);
-    setToken(null);
+    startTransition(() => {
+      setUser(null);
+      setToken(null);
+    });
   };
 
   return (
