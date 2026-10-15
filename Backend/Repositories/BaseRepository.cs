@@ -52,17 +52,11 @@ namespace Backend.Repositories
             return true;
         }
 
+        // Database errors propagate to the caller instead of being reported as "nothing saved"
         public async Task<bool> SaveChanges()
         {
-            try
-            {
-                var result = await _context.SaveChangesAsync();
-                return result > 0;
-            }
-            catch (Exception)
-            {
-                return false;
-            }
+            var result = await _context.SaveChangesAsync();
+            return result > 0;
         }
     }
 }
