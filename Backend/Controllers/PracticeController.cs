@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using Backend.Options;
 using Backend.DTOs;
 using Backend.Services;
 
@@ -18,21 +20,15 @@ namespace Backend.Controllers
         }
 
         [HttpPost("submit")]
+        [EnableRateLimiting(RateLimitPolicies.Ai)]
         public async Task<ActionResult<PracticeResponseDto>> SubmitSentence([FromBody] PracticeRequestDto request)
         {
             var userId = User.GetUserId();
             if (userId == null)
                 return Unauthorized();
 
-            try
-            {
-                var result = await _practiceService.CorrectSentence(userId.Value, request);
-                return Ok(result);
-            }
-            catch (AIServiceException ex)
-            {
-                return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = ex.Message });
-            }
+            var result = await _practiceService.CorrectSentence(userId.Value, request);
+            return Ok(result);
         }
 
         [HttpGet("history")]
