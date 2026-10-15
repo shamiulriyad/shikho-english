@@ -1,64 +1,64 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { apiCall } from '../utils/api';
+import StatTile from './ui/StatTile';
+import { ApiErrorNotice, LoadingState } from './ui/States';
 import type { UserProgress } from '../types/api';
 
+/**
+ * Totals from GET /practice/progress. The backend counts quizzes and practice sets together (both are
+ * saved as quizzes), so the labels say so rather than calling it a quiz-only average.
+ */
 const ProgressDashboard = () => {
   const { token } = useAuth();
   const [progress, setProgress] = useState<UserProgress | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<unknown>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (!token) return;
 
-    const fetchProgress = async () => {
-      try {
-        setProgress(await apiCall<UserProgress>('/practice/progress'));
-      } catch (error) {
-        console.error('Failed to fetch progress:', error);
-      } finally {
-        setIsLoading(false);
-      }
+    let active = true;
+    setError(null);
+    apiCall<UserProgress>('/practice/progress')
+      .then((data) => {
+        if (active) setProgress(data);
+      })
+      .catch((err: unknown) => {
+        if (active) setError(err);
+      });
+
+    return () => {
+      active = false;
     };
+  }, [token, attempt]);
 
-    fetchProgress();
-  }, [token]);
-
-  if (isLoading) {
-    return <div className="text-center text-gray-600">Loading progress...</div>;
+  if (error !== null) {
+    return <ApiErrorNotice error={error} title="We couldn’t load your totals" onRetry={() => setAttempt((n) => n + 1)} />;
   }
 
   if (!progress) {
-    return <div className="text-center text-gray-600">No progress data available</div>;
+    return <LoadingState label="Loading progress…" />;
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 max-w-6xl w-full">
-      <div className="bg-white rounded-lg shadow-lg p-6">
-        <h3 className="text-gray-600 text-sm font-semibold uppercase mb-2">Total Practices</h3>
-        <p className="text-4xl font-bold text-blue-600">{progress.totalPractices}</p>
-      </div>
-
-      <div className="bg-white rounded-lg shadow-lg p-6">
-        <h3 className="text-gray-600 text-sm font-semibold uppercase mb-2">Correct Practices</h3>
-        <p className="text-4xl font-bold text-green-600">{progress.correctPractices}</p>
-      </div>
-
-      <div className="bg-white rounded-lg shadow-lg p-6">
-        <h3 className="text-gray-600 text-sm font-semibold uppercase mb-2">Accuracy</h3>
-        <p className="text-4xl font-bold text-purple-600">{progress.correctPercentage.toFixed(1)}%</p>
-        <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
-          <div
-            className="bg-purple-600 h-2 rounded-full"
-            style={{ width: `${progress.correctPercentage}%` }}
-          />
-        </div>
-      </div>
-
-      <div className="bg-white rounded-lg shadow-lg p-6">
-        <h3 className="text-gray-600 text-sm font-semibold uppercase mb-2">Quiz Average</h3>
-        <p className="text-4xl font-bold text-orange-600">{progress.averageQuizScore.toFixed(1)}%</p>
-      </div>
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <StatTile label="Sentences checked" value={progress.totalPractices} caption="In Sentence Check" />
+      <StatTile label="Correct as written" value={progress.correctPractices} caption="Sentences that needed no changes" />
+      <StatTile
+        label="Sentence accuracy"
+        value={progress.totalPractices > 0 ? `${progress.correctPercentage.toFixed(1)}%` : '—'}
+        caption={progress.totalPractices > 0 ? 'Share of sentences already correct' : 'Check a sentence to see this'}
+      />
+      <StatTile
+        label="Average score"
+        value={progress.totalQuizzes > 0 ? `${progress.averageQuizScore.toFixed(1)}%` : '—'}
+        caption={
+          progress.totalQuizzes > 0
+            ? `Across ${progress.totalQuizzes} completed ${progress.totalQuizzes === 1 ? 'quiz or practice set' : 'quizzes and practice sets'}`
+            : 'Finish a quiz or practice set to see this'
+        }
+      />
     </div>
   );
 };
