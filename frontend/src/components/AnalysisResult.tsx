@@ -1,5 +1,7 @@
+import type { Ref } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import LanguageToggle from './LanguageToggle';
+import Badge from './ui/Badge';
 import type { QuestionAnalysis } from '../types/api';
 
 const LABELS = {
@@ -29,68 +31,94 @@ const LABELS = {
   }
 } as const;
 
-const AnalysisResult = ({ analysis }: { analysis: QuestionAnalysis }) => {
+const sectionLabel = 'mb-2 text-sm font-semibold text-brand-terracotta';
+
+/** An analysis laid out like an annotated worksheet. Focusable so a new result can receive focus. */
+const AnalysisResult = ({ analysis, ref }: { analysis: QuestionAnalysis; ref?: Ref<HTMLElement> }) => {
   const { language, pick } = useLanguage();
   const labels = LABELS[language];
   const feedback = analysis.studentAnswer;
 
   return (
-    <article className="bg-white rounded-lg shadow-lg p-6 space-y-5" lang={language}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <span className="inline-block bg-blue-100 text-blue-800 text-sm font-semibold px-3 py-1 rounded-full">
+    <article
+      ref={ref}
+      tabIndex={-1}
+      className="rounded-lg border border-line bg-white shadow-paper focus:outline-none"
+      lang={language}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3 sm:px-6">
+        <Badge tone="brand">
           {labels.topic}: {language === 'bn' ? analysis.topic.nameBn : analysis.topic.nameEn}
-        </span>
+        </Badge>
         <LanguageToggle />
       </div>
 
-      <section>
-        <h3 className="text-sm font-semibold text-gray-500 uppercase mb-1">{labels.question}</h3>
-        <p className="text-gray-800 whitespace-pre-wrap" lang="en">{analysis.questionText}</p>
-      </section>
-
-      <section className="bg-green-50 border border-green-200 rounded-lg p-4">
-        <h3 className="text-sm font-semibold text-green-800 uppercase mb-1">{labels.answer}</h3>
-        <p className="text-lg font-semibold text-green-800 whitespace-pre-wrap" lang="en">{analysis.correctAnswer}</p>
-      </section>
-
-      {feedback && (
-        <section className={`rounded-lg p-4 border ${feedback.isCorrect ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-          <h3 className="text-sm font-semibold text-gray-700 uppercase mb-1">{labels.yourAnswer}: <span lang="en">{feedback.answer}</span></h3>
-          <p className={`font-semibold ${feedback.isCorrect ? 'text-green-700' : 'text-red-700'}`}>
-            {feedback.isCorrect ? labels.correct : labels.incorrect}
-          </p>
-          <p className="text-gray-700 mt-1">{pick(feedback)}</p>
-        </section>
-      )}
-
-      <section>
-        <h3 className="text-lg font-semibold text-gray-800 mb-2">{labels.steps}</h3>
-        <ol className="list-decimal list-inside space-y-2 text-gray-700">
-          {analysis.steps.map((step, index) => (
-            <li key={index}>{pick(step)}</li>
-          ))}
-        </ol>
-      </section>
-
-      <section className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h3 className="text-lg font-semibold text-blue-900 mb-1">{labels.rule}</h3>
-        <p className="text-gray-800">{pick(analysis.rule)}</p>
-      </section>
-
-      {analysis.commonMistakes.length > 0 && (
+      <div className="space-y-6 px-5 py-6 sm:px-6">
         <section>
-          <h3 className="text-lg font-semibold text-gray-800 mb-2">{labels.mistakes}</h3>
-          <ul className="space-y-2">
-            {analysis.commonMistakes.map((mistake, index) => (
-              <li key={index} className="bg-yellow-50 border-l-4 border-yellow-400 p-3 text-gray-700">
-                {pick(mistake)}
+          <h2 className={sectionLabel}>{labels.question}</h2>
+          <p className="whitespace-pre-wrap rounded-md bg-paper px-4 py-3 text-ink" lang="en">{analysis.questionText}</p>
+        </section>
+
+        <section>
+          <h2 className={sectionLabel}>{labels.answer}</h2>
+          <p
+            className="inline-block whitespace-pre-wrap text-h2 text-brand-forest underline decoration-brand-amber decoration-[3px] underline-offset-[6px]"
+            lang="en"
+          >
+            {analysis.correctAnswer}
+          </p>
+        </section>
+
+        {feedback && (
+          <section className={`rounded-md border-l-4 px-4 py-3 ${feedback.isCorrect ? 'border-success bg-success-soft' : 'border-danger bg-danger-soft'}`}>
+            <h2 className="text-sm font-semibold text-ink">
+              {labels.yourAnswer}: <span lang="en">{feedback.answer}</span>
+            </h2>
+            <p className={`mt-1 font-semibold ${feedback.isCorrect ? 'text-success' : 'text-danger'}`}>
+              {feedback.isCorrect ? labels.correct : labels.incorrect}
+            </p>
+            <p className="mt-1 text-ink">{pick(feedback)}</p>
+          </section>
+        )}
+
+        <section>
+          <h2 className={sectionLabel}>{labels.steps}</h2>
+          <ol className="space-y-3">
+            {analysis.steps.map((step, index) => (
+              <li key={index} className="flex gap-3 text-ink">
+                <span
+                  aria-hidden="true"
+                  className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-info-soft text-sm font-semibold text-brand-forest"
+                >
+                  {index + 1}
+                </span>
+                <span>{pick(step)}</span>
               </li>
             ))}
-          </ul>
+          </ol>
         </section>
-      )}
 
-      <p className="text-xs text-gray-500">{labels.disclaimer}</p>
+        <section className="border-l-4 border-brand-terracotta bg-paper px-4 py-3">
+          <h2 className={sectionLabel}>{labels.rule}</h2>
+          <p className="text-ink">{pick(analysis.rule)}</p>
+        </section>
+
+        {analysis.commonMistakes.length > 0 && (
+          <section>
+            <h2 className={sectionLabel}>{labels.mistakes}</h2>
+            <ul className="space-y-2">
+              {analysis.commonMistakes.map((mistake, index) => (
+                <li key={index} className="flex gap-3 text-ink">
+                  <span aria-hidden="true" className="mt-2.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-amber" />
+                  <span>{pick(mistake)}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </div>
+
+      <p className="border-t border-line px-5 py-3 text-sm text-ink-muted sm:px-6">{labels.disclaimer}</p>
     </article>
   );
 };
