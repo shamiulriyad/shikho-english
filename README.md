@@ -97,11 +97,8 @@ learnEnglish/
 │   │   └── index.js                  # Entry point
 │   └── package.json
 │
-├── SETUP_GUIDE.md                    # Complete setup guide
-├── INSTALLATION_GUIDE.md             # Step-by-step installation
-├── API_DOCUMENTATION.md              # API endpoints documentation
-├── BACKEND_GUIDE.md                  # Backend architecture
-├── FRONTEND_GUIDE.md                 # Frontend architecture
+├── docs/DEPLOYMENT.md                # Supabase and deployment guide
+├── .env.example                      # Template for the single .env settings file
 └── README.md                         # This file
 ```
 
@@ -129,10 +126,10 @@ createdb learnEnglish_dev
 cd Backend
 dotnet restore
 
-# Secrets are never stored in appsettings*.json. Keep local ones in user-secrets:
-dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Port=5432;Database=learnEnglish_dev;Username=postgres;Password=<password>"
-dotnet user-secrets set "Jwt:Secret" "<random value, at least 32 bytes>"
-dotnet user-secrets set "Ai:Gemini:ApiKey" "<key>"   # optional in Development; AI endpoints return 503 without it
+# Every setting lives in ONE file at the repository root: .env (never committed).
+# Copy the template and fill in the database connection, a JWT secret and (optionally) the Gemini key:
+cp ../.env.example ../.env       # PowerShell: Copy-Item ..\.env.example ..\.env
+# Without Ai__Gemini__ApiKey the AI endpoints answer 503 in Development.
 
 # Start backend (Development applies pending migrations on startup)
 dotnet run
@@ -141,7 +138,14 @@ dotnet run
 The app refuses to start if the JWT secret is missing, shorter than 32 bytes or a published placeholder.
 Outside Development it also requires the selected provider's key (`Ai:Gemini:ApiKey` by default), and refuses `Database:MigrateOnStartup`.
 To use OpenAI instead, set `Ai:Provider` to `OpenAI` and `Ai:OpenAI:ApiKey`.
-See `Backend/.env.example` for the environment variables used in other environments.
+For Supabase fill in the `SUPABASE_*` settings (project ID, session-pooler host, database password);
+the backend builds the connection from them. See `docs/DEPLOYMENT.md`.
+
+`.env` is the ONE place for every setting: environment (`ASPNETCORE_ENVIRONMENT`), backend URL
+(`ASPNETCORE_URLS`), frontend port (`FRONTEND_PORT`), allowed origins, API URL, database, JWT and AI keys.
+The backend loads it before starting (from any folder inside the repository), and so do `dotnet ef`,
+`scripts/New-MigrationScript.ps1` and the frontend (Vite). A real environment variable with the same
+name always wins. Tests never read it.
 
 **Run backend tests** (integration tests need Docker running; they start a throwaway PostgreSQL container)
 ```bash
@@ -152,7 +156,7 @@ dotnet test learnEnglish.sln
 ```bash
 cd ../frontend
 npm install
-cp .env.example .env   # optional: VITE_API_BASE_URL defaults to http://localhost:5000/api
+# Uses VITE_API_BASE_URL from the root .env (defaults to http://localhost:5000/api)
 npm run dev            # http://localhost:3000
 
 # Checks
@@ -332,7 +336,7 @@ AI endpoints (analyze, practice set, practice/submit, quiz create and answer) ar
 (default 20 per minute) and login/registration per IP address (default 30 per minute); over the limit
 the API answers 429 with a ProblemDetails message and a `Retry-After` header.
 
-See [API_DOCUMENTATION.md](API_DOCUMENTATION.md) for detailed endpoint information.
+With the backend running in Development, Swagger at http://localhost:5000/swagger lists every endpoint with its request and response shapes.
 
 ---
 
@@ -382,11 +386,9 @@ curl -X POST http://localhost:5000/api/practice/submit \
 
 ## 📚 Documentation
 
-- [Setup Guide](SETUP_GUIDE.md) - Architecture & complete guide
-- [Installation Guide](INSTALLATION_GUIDE.md) - Step-by-step setup
-- [API Documentation](API_DOCUMENTATION.md) - All endpoints & examples
-- [Backend Guide](BACKEND_GUIDE.md) - Backend architecture details
-- [Frontend Guide](FRONTEND_GUIDE.md) - Frontend code organization
+- [Deployment Guide](docs/DEPLOYMENT.md) - Supabase setup, migrations, environment variables
+- [Frontend README](frontend/README.md) - Frontend scripts, configuration and structure
+- `.env.example` - Every setting, with where to find each value
 
 ---
 
@@ -397,7 +399,7 @@ curl -X POST http://localhost:5000/api/practice/submit \
 Error: Cannot connect to PostgreSQL
 Solution:
 1. Ensure PostgreSQL is running
-2. Check the connection string (`dotnet user-secrets list` in Backend/)
+2. Check ConnectionStrings__DefaultConnection in the root `.env`
 3. Verify database exists: psql -l
 ```
 
@@ -407,7 +409,7 @@ Error: 401 Unauthorized
 Solution:
 1. Get a Gemini key from https://aistudio.google.com (or an OpenAI key if `Ai:Provider` is `OpenAI`)
 2. Add sufficient credits
-3. Set it with `dotnet user-secrets set "Ai:Gemini:ApiKey" "<key>"` (or the Ai__Gemini__ApiKey environment variable)
+3. Set Ai__Gemini__ApiKey in the root `.env` (or as an environment variable)
 ```
 
 ### CORS Issues
@@ -437,7 +439,7 @@ Linux/Mac: lsof -i :5000 → kill -9 <PID>
 dotnet publish -c Release
 
 # Deploy to Azure, AWS, or on-premises server
-# Configure secrets as environment variables (see Backend/.env.example)
+# Configure secrets as environment variables on the host (same names as .env.example)
 
 # Migrations are not applied on startup outside Development. Generate the SQL, review it, then apply it:
 ./scripts/New-MigrationScript.ps1   # writes artifacts/migrate.sql and artifacts/supabase-lockdown.sql
