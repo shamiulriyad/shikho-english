@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Backend.DTOs;
 using Backend.Models;
 using Backend.Repositories;
@@ -16,12 +17,14 @@ namespace Backend.Services
     public class QuizService : IQuizService
     {
         private readonly IQuizRepository _quizRepository;
-        private readonly IOpenAIService _openAIService;
+        private readonly IGrammarAiService _grammarAi;
+        private readonly IAnswerEvaluator _answerEvaluator;
 
-        public QuizService(IQuizRepository quizRepository, IOpenAIService openAIService)
+        public QuizService(IQuizRepository quizRepository, IGrammarAiService grammarAi, IAnswerEvaluator answerEvaluator)
         {
             _quizRepository = quizRepository;
-            _openAIService = openAIService;
+            _grammarAi = grammarAi;
+            _answerEvaluator = answerEvaluator;
         }
 
         public async Task<QuizDto> CreateQuiz(int userId, int numberOfQuestions = 5)
@@ -37,14 +40,14 @@ namespace Backend.Services
             // Generate all questions first so a failing AI call doesn't leave an empty quiz behind
             for (int i = 0; i < numberOfQuestions; i++)
             {
-                var questionJson = await _openAIService.GenerateQuizQuestion();
+                var questionJson = await _grammarAi.GenerateQuizQuestion();
                 quiz.Questions.Add(ParseQuizQuestion(questionJson));
             }
 
             await _quizRepository.Add(quiz);
             await _quizRepository.SaveChanges();
 
-            return MapToDto(quiz);
+            return QuizMapper.ToDto(quiz);
         }
 
         public async Task<QuizDto?> SubmitQuizAnswer(int userId, int quizId, int questionId, string answer)
@@ -57,10 +60,22 @@ namespace Backend.Services
 
             // Ignore repeat answers so the score can't be inflated
             if (!string.IsNullOrEmpty(question.UserAnswer))
-                return MapToDto(quiz);
+                return QuizMapper.ToDto(quiz);
 
-            question.UserAnswer = answer.Trim();
-            question.IsAnsweredCorrectly = question.UserAnswer.Equals(question.CorrectAnswer.Trim(), StringComparison.OrdinalIgnoreCase);
+            var trimmedAnswer = answer.Trim();
+            if (question.AcceptedAnswersJson == null)
+            {
+                question.IsAnsweredCorrectly = trimmedAnswer.Equals(question.CorrectAnswer.Trim(), StringComparison.OrdinalIgnoreCase);
+            }
+            else
+            {
+                // May call the AI; if it is unavailable nothing is recorded and the student can try again
+                var evaluation = await _answerEvaluator.Evaluate(question, trimmedAnswer);
+                question.IsAnsweredCorrectly = evaluation.IsCorrect;
+                question.FeedbackEn = evaluation.FeedbackEn;
+                question.FeedbackBn = evaluation.FeedbackBn;
+            }
+            question.UserAnswer = trimmedAnswer;
 
             if (question.IsAnsweredCorrectly)
             {
@@ -73,9 +88,18 @@ namespace Backend.Services
                 quiz.CompletedAt = DateTime.UtcNow;
             }
 
-            await _quizRepository.SaveChanges();
+            try
+            {
+                await _quizRepository.SaveChanges();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                // The same question was answered by a parallel request first; report what was saved
+                var current = await _quizRepository.GetByIdWithQuestionsUntracked(quizId);
+                return current == null ? null : QuizMapper.ToDto(current);
+            }
 
-            return MapToDto(quiz);
+            return QuizMapper.ToDto(quiz);
         }
 
         public async Task<QuizDto?> GetQuiz(int userId, int quizId)
@@ -83,13 +107,13 @@ namespace Backend.Services
             var quiz = await _quizRepository.GetByIdWithQuestions(quizId);
             if (quiz == null || quiz.UserId != userId) return null;
 
-            return MapToDto(quiz);
+            return QuizMapper.ToDto(quiz);
         }
 
         public async Task<IEnumerable<QuizDto>> GetUserQuizzes(int userId)
         {
             var quizzes = await _quizRepository.GetByUserId(userId);
-            return quizzes.Select(MapToDto);
+            return quizzes.Select(QuizMapper.ToDto);
         }
 
         private static QuizQuestion ParseQuizQuestion(string jsonResponse)
@@ -111,8 +135,11 @@ namespace Backend.Services
                 throw new AIServiceException("The AI returned an unexpected quiz question. Please try again.", ex);
             }
         }
+    }
 
-        private static QuizDto MapToDto(Quiz quiz)
+    public static class QuizMapper
+    {
+        public static QuizDto ToDto(Quiz quiz)
         {
             return new QuizDto
             {
@@ -123,7 +150,11 @@ namespace Backend.Services
                 IsCompleted = quiz.IsCompleted,
                 CreatedAt = quiz.CreatedAt,
                 CompletedAt = quiz.CompletedAt,
-                Questions = quiz.Questions.Select(q =>
+                Topic = quiz.Topic == null
+                    ? null
+                    : new TopicDto { Code = quiz.Topic.Code, NameEn = quiz.Topic.NameEn, NameBn = quiz.Topic.NameBn },
+                SourceAnalysisId = quiz.SourceAnalysisId,
+                Questions = quiz.Questions.OrderBy(q => q.Id).Select(q =>
                 {
                     // Only reveal the answer once the question has been answered
                     var isAnswered = !string.IsNullOrEmpty(q.UserAnswer);
@@ -135,7 +166,11 @@ namespace Backend.Services
                         CorrectAnswer = isAnswered ? q.CorrectAnswer : null,
                         UserAnswer = isAnswered ? q.UserAnswer : null,
                         IsAnsweredCorrectly = isAnswered ? q.IsAnsweredCorrectly : null,
-                        Explanation = isAnswered ? q.Explanation : null
+                        Explanation = isAnswered ? q.Explanation : null,
+                        AnswerType = q.AcceptedAnswersJson == null ? QuizAnswerTypes.Articles : QuizAnswerTypes.Text,
+                        ExplanationBn = isAnswered ? q.ExplanationBn : null,
+                        FeedbackEn = isAnswered ? q.FeedbackEn : null,
+                        FeedbackBn = isAnswered ? q.FeedbackBn : null
                     };
                 }).ToList()
             };
