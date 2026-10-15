@@ -1,17 +1,49 @@
 import type { ProblemDetails } from '../types/api';
 import { redirectTo } from './navigation';
+import { loginPath } from './returnTo';
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
 export class ApiError extends Error {
   readonly status: number;
+  /** Seconds the server asked us to wait (Retry-After), or null when it didn't say or we can't read it */
+  readonly retryAfter: number | null;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, retryAfter: number | null = null) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.retryAfter = retryAfter;
   }
 }
+
+export const isRateLimited = (error: unknown): error is ApiError => error instanceof ApiError && error.status === 429;
+
+// Longer waits than this are treated as nonsense rather than shown as a day-long countdown
+const MAX_RETRY_AFTER_SECONDS = 60 * 60;
+
+/**
+ * Reads a Retry-After header: delay-seconds ("42") or an HTTP date. Missing, malformed or absurd
+ * values give null. Note: cross-origin, browsers only expose this header if the API lists it in
+ * Access-Control-Expose-Headers, so callers must cope with null.
+ */
+export const parseRetryAfter = (header: string | null, now = Date.now()): number | null => {
+  const value = header?.trim();
+  if (!value) return null;
+
+  let seconds: number;
+  if (/^\d+$/.test(value)) {
+    seconds = Number(value);
+  } else if (/^[A-Za-z]{3}/.test(value)) {
+    // Every HTTP-date format starts with the day name ("Fri, 16 Oct 2026 10:00:30 GMT")
+    const date = Date.parse(value);
+    if (Number.isNaN(date)) return null;
+    seconds = Math.max(0, Math.ceil((date - now) / 1000));
+  } else {
+    return null;
+  }
+  return Number.isSafeInteger(seconds) && seconds <= MAX_RETRY_AFTER_SECONDS ? seconds : null;
+};
 
 const parseJson = (text: string): unknown => {
   try {
@@ -50,11 +82,12 @@ export const apiCall = async <T>(endpoint: string, options: RequestInit = {}): P
     headers
   });
 
-  // Expired or invalid session: clear it and send the user back to login
+  // Expired or invalid session: clear it and send the user back to login, then on to where they were
   if (response.status === 401 && token && !isAuthEndpoint(endpoint)) {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    redirectTo('/login');
+    const { pathname, search, hash } = window.location;
+    redirectTo(loginPath(pathname + search + hash));
   }
 
   const text = await response.text();
@@ -62,7 +95,11 @@ export const apiCall = async <T>(endpoint: string, options: RequestInit = {}): P
   const data = text ? parseJson(text) : null;
 
   if (!response.ok) {
-    throw new ApiError(errorMessage(data as ProblemDetails | null | undefined, response.status), response.status);
+    throw new ApiError(
+      errorMessage(data as ProblemDetails | null | undefined, response.status),
+      response.status,
+      parseRetryAfter(response.headers.get('Retry-After'))
+    );
   }
 
   if (data === undefined) {
