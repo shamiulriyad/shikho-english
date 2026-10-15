@@ -5,11 +5,12 @@ const OPTIONS: { value: Language; label: string; lang: string }[] = [
   { value: 'bn', label: 'বাংলা', lang: 'bn' }
 ];
 
+/** Switches the explanation language everywhere and remembers the choice. */
 const LanguageToggle = () => {
   const { language, setLanguage } = useLanguage();
 
   return (
-    <div role="group" aria-label="Explanation language" className="inline-flex rounded-lg border border-gray-300 overflow-hidden">
+    <div role="group" aria-label="Explanation language" className="inline-flex rounded-md border border-line-strong bg-white p-0.5">
       {OPTIONS.map((option) => (
         <button
           key={option.value}
@@ -17,8 +18,8 @@ const LanguageToggle = () => {
           lang={option.lang}
           aria-pressed={language === option.value}
           onClick={() => setLanguage(option.value)}
-          className={`px-4 py-1.5 text-sm font-semibold transition ${
-            language === option.value ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-blue-50'
+          className={`rounded px-3 py-1 text-sm font-semibold transition-colors ${
+            language === option.value ? 'bg-brand-forest text-brand-ivory' : 'text-brand-forest hover:bg-info-soft'
           }`}
         >
           {option.label}
