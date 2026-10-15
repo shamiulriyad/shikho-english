@@ -1,13 +1,19 @@
 import { useRequireAuth } from '../hooks/useRequireAuth';
 import QuizComponent from '../components/QuizComponent';
+import { PageContainer, PageHeader } from '../components/ui/Page';
 
 const QuizPage = () => {
   useRequireAuth();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-indigo-100 py-12 px-4 flex items-center justify-center">
+    <PageContainer width="reading">
+      <PageHeader
+        eyebrow="Article quiz"
+        title="Grammar Quiz"
+        description="A short multiple-choice quiz on a, an and the."
+      />
       <QuizComponent />
-    </div>
+    </PageContainer>
   );
 };
 
