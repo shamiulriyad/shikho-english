@@ -174,7 +174,7 @@ public class OptionsValidatorTests
         var result = new DatabaseOptionsValidator(Environment(Environments.Development)).Validate(null, new DatabaseOptions());
 
         Assert.True(result.Failed);
-        Assert.Contains("ConnectionStrings:DefaultConnection", result.FailureMessage);
+        Assert.Contains("No database configured", result.FailureMessage);
     }
 
     [Fact]
@@ -213,11 +213,11 @@ public class OptionsValidatorTests
     }
 
     [Theory]
-    [InlineData("Host=db.example.supabase.co;Database=postgres;Username=postgres;Password=x;SSL Mode=Require")]
     [InlineData("Host=db.example.supabase.co;Database=postgres;Username=postgres;Password=x;SSL Mode=VerifyFull")]
+    [InlineData("Host=db.example.supabase.co;Database=postgres;Username=postgres;Password=x;SSL Mode=VerifyCA")]
     [InlineData("Host=localhost;Database=app;Username=app;Password=x")]
     [InlineData("Host=127.0.0.1;Port=55432;Database=app;Username=app;Password=x")]
-    public void Database_EncryptedOrLocal_IsAccepted(string connectionString)
+    public void Database_VerifiedOrLocal_IsAcceptedInProduction(string connectionString)
     {
         var options = new DatabaseOptions { ConnectionString = connectionString };
 
@@ -225,11 +225,103 @@ public class OptionsValidatorTests
     }
 
     [Fact]
-    public void Database_RemoteWithoutSsl_IsAllowedInDevelopment()
+    public void Database_RequireWithoutCertificateCheck_FailsInProduction_ButIsAllowedInDevelopment()
+    {
+        // Require encrypts but does not check the server's certificate, so it cannot stop a man-in-the-middle
+        var options = new DatabaseOptions { ConnectionString = "Host=db.example.supabase.co;Database=postgres;Username=postgres;Password=x;SSL Mode=Require" };
+
+        var production = new DatabaseOptionsValidator(Environment(Environments.Production)).Validate(null, options);
+        Assert.Contains("SSL Mode=VerifyFull", production.FailureMessage);
+        Assert.True(new DatabaseOptionsValidator(Environment(Environments.Development)).Validate(null, options).Succeeded);
+    }
+
+    [Fact]
+    public void Database_RemoteWithoutSsl_FailsEvenInDevelopment()
     {
         var options = new DatabaseOptions { ConnectionString = "Host=db.example.com;Database=app;Username=app;Password=x" };
 
-        Assert.True(new DatabaseOptionsValidator(Environment(Environments.Development)).Validate(null, options).Succeeded);
+        var result = new DatabaseOptionsValidator(Environment(Environments.Development)).Validate(null, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains("remote database", result.FailureMessage);
+    }
+
+    [Fact]
+    public void Database_MigrateOnStartup_FailsForARemoteDatabase_EvenInDevelopment()
+    {
+        var options = new DatabaseOptions
+        {
+            ConnectionString = "Host=aws-0-ap-south-1.pooler.supabase.com;Database=postgres;Username=postgres.ref;Password=x;SSL Mode=Require",
+            MigrateOnStartup = true
+        };
+
+        var result = new DatabaseOptionsValidator(Environment(Environments.Development)).Validate(null, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains("MigrateOnStartup only works with a local database", result.FailureMessage);
+    }
+
+    [Theory]
+    [InlineData("postgresql://postgres:x@db.example.supabase.co:5432/postgres")]
+    [InlineData("postgres://postgres:x@db.example.supabase.co:5432/postgres")]
+    [InlineData("Host=postgresql://postgres:[x]@db.example.supabase.co:5432/postgres")]
+    public void Database_PastedLink_FailsWithAHelpfulMessage(string connectionString)
+    {
+        var result = new DatabaseOptionsValidator(Environment(Environments.Development)).Validate(null, new DatabaseOptions { ConnectionString = connectionString });
+
+        Assert.Contains("contains a postgresql:// link", result.FailureMessage);
+        Assert.DoesNotContain("x@db", result.FailureMessage); // never echo the pasted link, it holds the password
+    }
+
+    [Fact]
+    public void Database_MissingRootCertificateFile_Fails()
+    {
+        var missing = Path.Combine(Path.GetTempPath(), $"missing-{Guid.NewGuid():N}.crt");
+        var options = new DatabaseOptions { ConnectionString = $"Host=db.example.supabase.co;Database=postgres;Username=postgres;Password=x;SSL Mode=VerifyFull;Root Certificate={missing}" };
+
+        var result = new DatabaseOptionsValidator(Environment(Environments.Production)).Validate(null, options);
+
+        Assert.Contains("Root Certificate file", result.FailureMessage);
+    }
+
+    [Fact]
+    public void Database_ExistingRootCertificateFile_IsAccepted()
+    {
+        var certificate = Path.Combine(Path.GetTempPath(), $"ca-{Guid.NewGuid():N}.crt");
+        File.WriteAllText(certificate, "not a real certificate; only existence is checked here");
+        try
+        {
+            var options = new DatabaseOptions { ConnectionString = $"Host=db.example.supabase.co;Database=postgres;Username=postgres;Password=x;SSL Mode=VerifyFull;Root Certificate={certificate}" };
+
+            Assert.True(new DatabaseOptionsValidator(Environment(Environments.Production)).Validate(null, options).Succeeded);
+        }
+        finally
+        {
+            File.Delete(certificate);
+        }
+    }
+
+    [Fact]
+    public void ResolveCertificatePath_MakesRelativePathsRelativeToTheRepositoryRoot()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "repo-root");
+
+        var resolved = new Npgsql.NpgsqlConnectionStringBuilder(DatabaseOptions.ResolveCertificatePath(
+            "Host=h;Database=d;Username=u;Password=p;SSL Mode=VerifyFull;Root Certificate=certs/supabase-ca.crt", root));
+
+        Assert.Equal(Path.GetFullPath(Path.Combine(root, "certs", "supabase-ca.crt")), resolved.RootCertificate);
+        Assert.Equal("p", resolved.Password);
+    }
+
+    [Fact]
+    public void ResolveCertificatePath_LeavesOtherConnectionStringsAlone()
+    {
+        const string withoutCertificate = "Host=localhost;Database=d;Username=u;Password=p";
+        var absolute = $"Host=h;Database=d;Root Certificate={Path.Combine(Path.GetTempPath(), "ca.crt")}";
+
+        Assert.Equal(withoutCertificate, DatabaseOptions.ResolveCertificatePath(withoutCertificate, "/repo"));
+        Assert.Equal(absolute, DatabaseOptions.ResolveCertificatePath(absolute, "/repo"));
+        Assert.Equal("", DatabaseOptions.ResolveCertificatePath("", "/repo"));
     }
 
     [Fact]
