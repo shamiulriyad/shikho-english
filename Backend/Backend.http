@@ -1,3 +1,4 @@
+# Keep in sync with ASPNETCORE_URLS in the repository's .env
 @Backend_HostAddress = http://localhost:5000
 @token = paste-a-token-from-login-here
 
