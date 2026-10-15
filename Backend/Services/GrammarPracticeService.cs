@@ -16,21 +16,21 @@ namespace Backend.Services
     {
         private readonly IGrammarPracticeRepository _practiceRepository;
         private readonly IQuizRepository _quizRepository;
-        private readonly IOpenAIService _openAIService;
+        private readonly IGrammarAiService _grammarAi;
 
         public GrammarPracticeService(
             IGrammarPracticeRepository practiceRepository,
             IQuizRepository quizRepository,
-            IOpenAIService openAIService)
+            IGrammarAiService grammarAi)
         {
             _practiceRepository = practiceRepository;
             _quizRepository = quizRepository;
-            _openAIService = openAIService;
+            _grammarAi = grammarAi;
         }
 
         public async Task<PracticeResponseDto> CorrectSentence(int userId, PracticeRequestDto request)
         {
-            var (correctedSentence, mistakes, explanation) = await _openAIService.CorrectSentence(request.Sentence);
+            var (correctedSentence, mistakes, explanation) = await _grammarAi.CorrectSentence(request.Sentence);
 
             var practice = new GrammarPractice
             {
