@@ -3,6 +3,7 @@ import { useRequireAuth } from '../hooks/useRequireAuth';
 import { usePractice } from '../context/PracticeContext';
 import PracticeSentenceInput from '../components/PracticeSentenceInput';
 import PracticeHistory from '../components/PracticeHistory';
+import { PageContainer, PageHeader } from '../components/ui/Page';
 
 const PracticePage = () => {
   const { token } = useRequireAuth();
@@ -15,16 +16,17 @@ const PracticePage = () => {
   }, [token, getHistory]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4">
-      <div className="max-w-3xl mx-auto">
+    <PageContainer width="reading">
+      <PageHeader
+        eyebrow="Sentence Check"
+        title="Check your own sentence"
+        description="Write a sentence and see it corrected, with each article mistake explained."
+      />
+      <div className="space-y-10">
         <PracticeSentenceInput />
-        {practices.length > 0 && (
-          <div className="mt-8">
-            <PracticeHistory practices={practices} />
-          </div>
-        )}
+        <PracticeHistory practices={practices} />
       </div>
-    </div>
+    </PageContainer>
   );
 };
 
