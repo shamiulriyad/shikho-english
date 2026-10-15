@@ -14,14 +14,15 @@ React 19 + TypeScript (strict), built with Vite and styled with Tailwind CSS.
 
 ## Configuration
 
-Copy `.env.example` to `.env` to override the API location:
+Settings live in the single `.env` file at the repository root (copy `../.env.example`); Vite reads
+it through `envDir: '..'` in `vite.config.ts`. The frontend only uses:
 
 ```
 VITE_API_BASE_URL=http://localhost:5000/api
 ```
 
 Only variables prefixed with `VITE_` are exposed to the browser, and they are visible to anyone
-who loads the app. Never put API keys or other secrets here; all AI calls go through the backend.
+who loads the app. The backend secrets in the same file are never bundled; all AI calls go through the backend.
 
 ## Structure
 
