@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router-dom';
 import PracticeSetPage from './PracticeSetPage';
@@ -73,7 +73,7 @@ describe('PracticeSetButton', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Practice 3 similar questions' }));
 
-    expect(await screen.findByTestId('location')).toHaveTextContent('/practice-sets/9');
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/practice-sets/9'));
     expect(JSON.parse(String(fetchMock.mock.calls[0]![1]?.body))).toEqual({ count: 3 });
   });
 
