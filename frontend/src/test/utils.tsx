@@ -57,7 +57,15 @@ export const mockApi = (routes: Record<string, RouteHandler>) => {
   return fetchMock;
 };
 
-const LocationDisplay = () => <div data-testid="location">{useLocation().pathname}</div>;
+const LocationDisplay = () => {
+  const { pathname, search } = useLocation();
+  return (
+    <>
+      <div data-testid="location">{pathname}</div>
+      <div data-testid="location-search">{search}</div>
+    </>
+  );
+};
 
 /** Renders inside the app's providers and a router, with the current path shown for assertions. */
 export const renderWithProviders = (ui: ReactElement, { route = '/' } = {}) =>
