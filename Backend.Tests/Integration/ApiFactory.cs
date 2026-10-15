@@ -11,7 +11,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 namespace Backend.Tests.Integration;
 
 /// <summary>
-/// Hosts the real API in memory. Runs in a "Testing" environment so developer user-secrets are never loaded,
+/// Hosts the real API in memory. Runs in a "Testing" environment so the developer's .env file is never loaded,
 /// and replaces the AI service with a fake so no live AI API is called.
 /// </summary>
 public class ApiFactory : WebApplicationFactory<Program>
