@@ -1,3 +1,12 @@
+# Notes and docs: ignore every .md except README.md files, and every .txt file
+*.md
+!README.md
+# Deployment guide linked from README.md and .env.example
+!docs/DEPLOYMENT.md
+*.txt
+# Part of the website (tells search engines what to crawl), not a notes file
+!frontend/public/robots.txt
+
 # .NET build output
 bin/
 obj/
@@ -12,3 +21,6 @@ TestResults/
 
 # Generated migration SQL (scripts/New-MigrationScript.ps1)
 artifacts/
+
+# Database CA certificates (e.g. certs/supabase-ca.crt), downloaded per developer
+certs/
