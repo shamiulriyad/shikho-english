@@ -1,12 +1,14 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useRequireAuth } from '../hooks/useRequireAuth';
-import { useLanguage } from '../context/LanguageContext';
-import { apiCall } from '../utils/api';
+import { ApiError, apiCall } from '../utils/api';
 import LanguageToggle from '../components/LanguageToggle';
-import type { Quiz, QuizQuestion } from '../types/api';
-
-const errorMessage = (err: unknown) => (err instanceof Error ? err.message : String(err));
+import PracticeResults from '../components/practice/PracticeResults';
+import QuestionCard from '../components/practice/QuestionCard';
+import { ButtonLink } from '../components/ui/Button';
+import { PageContainer, PageHeader } from '../components/ui/Page';
+import { ApiErrorNotice, LoadingState } from '../components/ui/States';
+import type { Quiz } from '../types/api';
 
 // Start on the first unanswered question so a reloaded page resumes where the student stopped
 const firstUnanswered = (quiz: Quiz) => {
@@ -14,45 +16,27 @@ const firstUnanswered = (quiz: Quiz) => {
   return index === -1 ? quiz.questions.length - 1 : index;
 };
 
-const AnswerResult = ({ question }: { question: QuizQuestion }) => {
-  const { language } = useLanguage();
-  const feedback = language === 'bn' ? question.feedbackBn : question.feedbackEn;
-  const explanation = language === 'bn' ? question.explanationBn ?? question.explanation : question.explanation;
-
-  return (
-    <div
-      lang={language}
-      className={`p-4 rounded-lg border space-y-2 ${question.isAnsweredCorrectly ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}
-    >
-      <p className={`font-semibold ${question.isAnsweredCorrectly ? 'text-green-700' : 'text-red-700'}`}>
-        {question.isAnsweredCorrectly ? (language === 'bn' ? '✓ সঠিক!' : '✓ Correct!') : (language === 'bn' ? '✗ সঠিক হয়নি' : '✗ Not quite')}
-      </p>
-      <p className="text-gray-700">
-        <strong>{language === 'bn' ? 'তোমার উত্তর:' : 'Your answer:'}</strong> <span lang="en">{question.userAnswer}</span>
-      </p>
-      <p className="text-gray-700">
-        <strong>{language === 'bn' ? 'সঠিক উত্তর:' : 'Correct answer:'}</strong> <span lang="en">{question.correctAnswer}</span>
-      </p>
-      {feedback && <p className="text-gray-700">{feedback}</p>}
-      {explanation && <p className="text-gray-700">{explanation}</p>}
-    </div>
-  );
-};
-
+/**
+ * Answers a saved quiz or practice set, resuming where the student stopped. Practice sets ask for typed
+ * answers with bilingual feedback; article quizzes show a, an and the.
+ */
 const PracticeSetPage = () => {
   const { token } = useRequireAuth();
   const { id } = useParams();
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [answer, setAnswer] = useState('');
   const [showResults, setShowResults] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState<unknown>(null);
+  const [answerError, setAnswerError] = useState<unknown>(null);
+  const [movedOn, setMovedOn] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (!token || !id) return;
 
     let active = true;
+    setLoadError(null);
     apiCall<Quiz>(`/quiz/${encodeURIComponent(id)}`)
       .then((data) => {
         if (!active) return;
@@ -61,22 +45,22 @@ const PracticeSetPage = () => {
         setShowResults(data.isCompleted && data.questions.every((q) => q.userAnswer));
       })
       .catch((err: unknown) => {
-        if (active) setError(errorMessage(err));
+        if (active) setLoadError(err);
       });
 
     return () => {
       active = false;
     };
-  }, [token, id]);
+  }, [token, id, attempt]);
 
   const question = quiz?.questions[currentIndex];
+  const bilingual = quiz?.questions.some((q) => q.answerType === 'text') ?? false;
 
-  const submitAnswer = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!quiz || !question || !answer.trim()) return;
+  const submitAnswer = async (answer: string) => {
+    if (!quiz || !question) return;
 
     setIsSubmitting(true);
-    setError('');
+    setAnswerError(null);
     try {
       setQuiz(await apiCall<Quiz>(`/quiz/${quiz.id}/answer`, {
         method: 'POST',
@@ -84,7 +68,7 @@ const PracticeSetPage = () => {
       }));
     } catch (err) {
       // Nothing was recorded, so the student can simply try again
-      setError(errorMessage(err));
+      setAnswerError(err);
     } finally {
       setIsSubmitting(false);
     }
@@ -92,7 +76,7 @@ const PracticeSetPage = () => {
 
   const goToNext = () => {
     if (!quiz) return;
-    setAnswer('');
+    setMovedOn(true);
     if (currentIndex < quiz.questions.length - 1) {
       setCurrentIndex(currentIndex + 1);
     } else {
@@ -100,85 +84,77 @@ const PracticeSetPage = () => {
     }
   };
 
-  const backLink = quiz?.sourceAnalysisId && (
-    <Link to={`/questions/${quiz.sourceAnalysisId}`} className="inline-block text-blue-700 font-semibold hover:underline">
-      ← Back to the original question
-    </Link>
-  );
+  const notFound = loadError instanceof ApiError && loadError.status === 404;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-indigo-100 py-12 px-4">
-      <div className="max-w-2xl mx-auto space-y-4">
-        {backLink}
+    <PageContainer width="reading">
+      {quiz?.sourceAnalysisId && (
+        <Link
+          to={`/questions/${quiz.sourceAnalysisId}`}
+          className="mb-6 inline-block font-semibold text-brand-forest underline-offset-4 hover:underline"
+        >
+          ← Back to the original question
+        </Link>
+      )}
 
-        {error && (
-          <div role="alert" className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">{error}</div>
+      <PageHeader
+        eyebrow={quiz?.topic ? quiz.topic.nameEn : quiz ? 'Article quiz' : 'Practice'}
+        title={quiz ? quiz.title : 'Practice'}
+        documentTitle={quiz ? quiz.title : 'Practice'}
+      />
+
+      <div className="space-y-6">
+        {loadError !== null && (
+          <>
+            <ApiErrorNotice
+              error={loadError}
+              title={notFound ? 'We couldn’t find this practice set' : 'We couldn’t load this practice set'}
+              onRetry={notFound ? undefined : () => setAttempt((n) => n + 1)}
+            />
+            {notFound && <ButtonLink to="/analyze" variant="secondary">Analyze a question</ButtonLink>}
+          </>
         )}
-        {!quiz && !error && <p className="text-gray-600">Loading...</p>}
+        {!quiz && loadError === null && <LoadingState label="Loading practice…" />}
 
         {quiz && showResults && (
-          <div className="bg-white rounded-lg shadow-lg p-6 text-center space-y-4">
-            <h1 className="text-2xl font-bold text-gray-800">Practice complete!</h1>
-            <p className="text-5xl font-bold text-purple-600">{quiz.score} / {quiz.totalQuestions}</p>
-            <Link to="/analyze" className="inline-block bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700">
-              Analyze another question
-            </Link>
-          </div>
+          <PracticeResults
+            quiz={quiz}
+            heading={bilingual ? 'Practice complete!' : 'Quiz Completed!'}
+            actions={
+              bilingual ? (
+                <>
+                  <ButtonLink to="/analyze">Analyze another question</ButtonLink>
+                  {quiz.sourceAnalysisId && (
+                    <ButtonLink to={`/questions/${quiz.sourceAnalysisId}`} variant="secondary">
+                      Review the original question
+                    </ButtonLink>
+                  )}
+                </>
+              ) : (
+                <ButtonLink to="/quiz">Start a new quiz</ButtonLink>
+              )
+            }
+          />
         )}
 
         {quiz && question && !showResults && (
-          <div className="bg-white rounded-lg shadow-lg p-6 space-y-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h1 className="text-xl font-bold text-gray-800">{quiz.title}</h1>
-                <p className="text-gray-600">Question {currentIndex + 1} of {quiz.questions.length} · {quiz.score} correct</p>
-              </div>
-              <LanguageToggle />
-            </div>
-
-            <div>
-              <p className="font-semibold text-gray-800">{question.question}</p>
-              <p className="text-gray-700 mt-2 p-4 bg-gray-50 rounded-lg whitespace-pre-wrap">{question.incorrectSentence}</p>
-            </div>
-
-            {question.userAnswer ? (
-              <>
-                <AnswerResult question={question} />
-                <button
-                  type="button"
-                  onClick={goToNext}
-                  className="w-full bg-purple-600 text-white py-2 rounded-lg font-semibold hover:bg-purple-700 transition"
-                >
-                  {currentIndex === quiz.questions.length - 1 ? 'See Results' : 'Next Question'}
-                </button>
-              </>
-            ) : (
-              <form onSubmit={submitAnswer} className="space-y-3">
-                <label htmlFor="practice-answer" className="block text-sm font-medium text-gray-700">
-                  Your answer
-                </label>
-                <input
-                  id="practice-answer"
-                  type="text"
-                  value={answer}
-                  onChange={(e) => setAnswer(e.target.value)}
-                  maxLength={500}
-                  autoComplete="off"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
-                />
-                <button
-                  type="submit"
-                  disabled={isSubmitting || !answer.trim()}
-                  className="w-full bg-purple-600 text-white py-2 rounded-lg font-semibold hover:bg-purple-700 transition disabled:opacity-50"
-                >
-                  {isSubmitting ? 'Checking...' : 'Check Answer'}
-                </button>
-              </form>
-            )}
-          </div>
+          <QuestionCard
+            key={question.id}
+            question={question}
+            index={currentIndex}
+            total={quiz.questions.length}
+            score={quiz.score}
+            bilingual={bilingual}
+            isSubmitting={isSubmitting}
+            error={answerError}
+            onAnswer={(answer) => void submitAnswer(answer)}
+            onNext={goToNext}
+            focusOnMount={movedOn}
+            headerAction={bilingual ? <LanguageToggle /> : undefined}
+          />
         )}
       </div>
-    </div>
+    </PageContainer>
   );
 };
 
