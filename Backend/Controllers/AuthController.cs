@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using Backend.Options;
 using Backend.DTOs;
 using Backend.Services;
 
@@ -6,6 +8,7 @@ namespace Backend.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [EnableRateLimiting(RateLimitPolicies.Auth)]
     public class AuthController : ControllerBase
     {
         private readonly IAuthService _authService;
@@ -18,12 +21,9 @@ namespace Backend.Controllers
         [HttpPost("register")]
         public async Task<ActionResult<AuthResponseDto>> Register([FromBody] UserRegisterDto registerDto)
         {
-            if (!ModelState.IsValid)
-                return BadRequest(ModelState);
-
             var result = await _authService.Register(registerDto);
             if (!result.Success)
-                return BadRequest(result);
+                return Problem(statusCode: StatusCodes.Status400BadRequest, detail: result.Message);
 
             return Ok(result);
         }
@@ -31,12 +31,9 @@ namespace Backend.Controllers
         [HttpPost("login")]
         public async Task<ActionResult<AuthResponseDto>> Login([FromBody] UserLoginDto loginDto)
         {
-            if (!ModelState.IsValid)
-                return BadRequest(ModelState);
-
             var result = await _authService.Login(loginDto);
             if (!result.Success)
-                return Unauthorized(result);
+                return Problem(statusCode: StatusCodes.Status401Unauthorized, detail: result.Message);
 
             return Ok(result);
         }
