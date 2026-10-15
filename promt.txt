@@ -1,0 +1,74 @@
+Act as a senior software architect, ASP.NET Core engineer, React developer, and AI education product engineer.
+
+I am building **Shikho English**, an AI-powered English learning platform for Bangladeshi SSC students.
+
+## Fixed Technology Stack — Do Not Change
+
+Frontend:
+- React.js
+- TypeScript
+- Vite
+- Tailwind CSS
+- React Router
+- Reusable, accessible UI components
+
+Backend:
+- C#
+- ASP.NET Core Web API
+- Entity Framework Core
+- RESTful API architecture
+- Dependency injection and configuration through appsettings and environment variables
+
+Database:
+- PostgreSQL hosted on Supabase
+- Entity Framework Core with the appropriate PostgreSQL provider
+
+AI:
+- Gemini API initially
+- A provider abstraction so the AI provider can be replaced later
+- All AI calls must be made through the backend
+
+Testing:
+- xUnit for backend unit and integration tests
+- Appropriate frontend tests and production build checks
+
+## Product Vision
+
+Shikho English is an AI-powered personal English teacher for Bangladeshi SSC students.
+
+The initial MVP focuses on SSC English 2nd Paper grammar and question analysis.
+
+The AI teacher should:
+1. Analyze English questions.
+2. Return the correct answer with a step-by-step explanation.
+3. Explain grammar rules in simple Bangla and English.
+4. Identify common mistakes.
+5. Generate related practice questions.
+6. Evaluate student answers and explain errors.
+7. Save question history and track learning progress.
+
+Future features may include English 1st Paper, writing evaluation, verified board questions, image/PDF question extraction, personalized revision, and student analytics.
+
+## Your First Task: Audit Before Implementation
+
+1. Inspect the existing repository and identify its current frontend, backend, database, and configuration.
+2. Preserve all working code and existing data.
+3. Identify missing features, architectural risks, and unnecessary complexity.
+4. Propose a React + ASP.NET Core + PostgreSQL architecture.
+5. Recommend a clean directory structure for the frontend and backend.
+6. Define the MVP modules, API endpoints, database entities, and development milestones.
+7. Explain how Gemini integration, AI response validation, authentication, authorization, and secure API key management will work.
+8. Define testing and verification requirements.
+
+## Strict Rules
+
+- Do not use Next.js as the frontend framework.
+- Do not use FastAPI or Python as the application backend.
+- Python may be used separately for optional data-processing scripts only if justified and approved.
+- Do not create a second backend or duplicate existing entities.
+- Do not expose Gemini API keys or database secrets in frontend code.
+- Do not implement all features at once.
+- Do not modify or delete existing files until the audit and proposed plan are reviewed.
+- Clearly distinguish implemented features from proposed features.
+
+First return the repository audit, proposed architecture, directory structure, MVP scope, risks, and implementation plan. Wait for approval before making major changes.
