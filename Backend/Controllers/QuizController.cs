@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using Backend.Options;
 using Backend.DTOs;
 using Backend.Services;
 
@@ -20,6 +22,7 @@ namespace Backend.Controllers
         }
 
         [HttpPost("create")]
+        [EnableRateLimiting(RateLimitPolicies.Ai)]
         public async Task<ActionResult<QuizDto>> CreateQuiz([FromQuery] int numberOfQuestions = 5)
         {
             var userId = User.GetUserId();
@@ -27,20 +30,14 @@ namespace Backend.Controllers
                 return Unauthorized();
 
             if (numberOfQuestions < 1 || numberOfQuestions > MaxQuestions)
-                return BadRequest(new { message = $"numberOfQuestions must be between 1 and {MaxQuestions}" });
+                return Problem(statusCode: StatusCodes.Status400BadRequest, detail: $"numberOfQuestions must be between 1 and {MaxQuestions}");
 
-            try
-            {
-                var result = await _quizService.CreateQuiz(userId.Value, numberOfQuestions);
-                return Ok(result);
-            }
-            catch (AIServiceException ex)
-            {
-                return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = ex.Message });
-            }
+            var result = await _quizService.CreateQuiz(userId.Value, numberOfQuestions);
+            return Ok(result);
         }
 
         [HttpPost("{quizId}/answer")]
+        [EnableRateLimiting(RateLimitPolicies.Ai)]
         public async Task<ActionResult<QuizDto>> SubmitAnswer(int quizId, [FromBody] QuizAnswerDto answerDto)
         {
             var userId = User.GetUserId();
@@ -49,7 +46,7 @@ namespace Backend.Controllers
 
             var result = await _quizService.SubmitQuizAnswer(userId.Value, quizId, answerDto.QuestionId, answerDto.Answer);
             if (result == null)
-                return NotFound(new { message = "Quiz or question not found" });
+                return Problem(statusCode: StatusCodes.Status404NotFound, detail: "Quiz or question not found");
 
             return Ok(result);
         }
@@ -63,7 +60,7 @@ namespace Backend.Controllers
 
             var result = await _quizService.GetQuiz(userId.Value, quizId);
             if (result == null)
-                return NotFound(new { message = "Quiz not found" });
+                return Problem(statusCode: StatusCodes.Status404NotFound, detail: "Quiz not found");
 
             return Ok(result);
         }
